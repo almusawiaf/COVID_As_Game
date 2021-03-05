@@ -3,6 +3,8 @@ import pandas as pd
 from random import randrange
 import math
 import matplotlib.pyplot as plt
+import copy
+
 
 sigma, gamma, alphas = [0.001, 0.2], 0.1, 0.05
 P = [1628706, 1628706, 1628706, 1628706, 1628706]
@@ -35,12 +37,12 @@ def create_Z_total(t):
 
 def opt(zid, z_total, repeat):
     global beta, sigma, gamma, alphas, P
-    z0 = z_total[zid]
+    z0 = copy.deepcopy(z_total[zid])
     newP = P[randrange(len(P))]
     print("zid = {}\np[zid] = {}\nbeta[zid] = {}\nz0 = {}\n".format(zid, newP, beta[zid], z0))
     
     new_infected  = sigma[repeat]*z0[1]
-    
+
     # S: Susceptible, E: Exposed, I: Infectious, R: Recovered, D: Dead
     S = - (beta[zid] * z0[0] * z0[2]) /newP
     E = (beta[zid] * z0[0] * z0[2]) / newP - new_infected
@@ -55,7 +57,7 @@ def opt(zid, z_total, repeat):
     z0[4] = z0[4] + D
     
     print("new Z0 = {}\n--------------------------\n".format(z0))
-    z_total[zid]=z0
+    z_total[zid]=copy.deepcopy(z0)
     return z_total
 
 def beta_values():
@@ -103,9 +105,20 @@ def LogFunction():
     plt.legend()
     plt.show()
 
+def coalition_game(N, v):
+    """N : list of players
+    v(S) : 2^N --> R, payoff function that can be distribute among players of coalition."""
+    S = Shapley(N)
+    return S
+
+def Shapley(N):
+    """members should receive payments or shares proportional to their marginal contributions"""
+    if len(N)==0:
+        return 0
     
+def divide_payoff():
     
-    
+    return 0
     
     
     
