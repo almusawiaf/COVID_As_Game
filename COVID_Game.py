@@ -12,7 +12,7 @@ from pandas import *
 # scipy optimize
 # Pulp Intrga
 
-
+V = [([1],100), ([2],125), ([3],50), ([1,2],270), ([1,3],375), ([2,3],350), ([1,2,3],500)]
 z = 1
 P = 1628706
 # P = [1628706, 1628706, 1628706, 1628706, 1628706]
@@ -32,44 +32,21 @@ def main(z, Time = None):
     # creating N zones with initial random SEIRD values
     Z_Total = create_zone(z)
     print("number of zones:", len(Z_Total))
-    print("Initial Zones:\n{}".format(Z_Total))
-    print(DataFrame(Z_Total))
-    print("-------------------------------")
-
+    print("Initial Zones:")
+    print(pd.DataFrame(Z_Total))
+    print("-------------------------------Coalition Game-------------------------------")
     coalition_game(Z_Total)
     print("-------------------------------")
     
-    # for z in range(len(Z_Total)):
-    #     current_zone = Z_Total[z]
-    #     print(current_zone)
-    #     infected = current_zone[2]
-    #     print(Reward(infected, 10))
-    # print("-------------------------------")
-
-        # apply_OPT(current_zone, Time)
-
-
-
-    # for t in range(1, Time):
-    #     # t : time slot
-    #     T.append(t)
-    #     # print("t = {}".format(t))
-    #     Z = []
-    #     current_zone = Z_Total[-1]
-    #     # print("-------------------------------")
-    #     for z in range(N):
-    #         newZ = OPT(z, current_zone, t)
-    #         # print ("\tsum(   Z[{}])={}\n\tsum(newZ[{}])={} ".format(z, sum(current_zone[z]), z, sum(newZ)))
-    #         # print ("\tdifference (sum(Z[{}]),sum(newZ[{}]))={} ".format(z, z, sum(current_zone[z])-sum(newZ)))
-    #         Z.append(newZ)
-    #     Z_Total.append(Z)
-    # # print("-------------------------------")
-    # # Plotting(Z_Total, T)
-    # seird= SEIRD(Z_Total)
-    # PlottingZone(Z_Total, T, 0)
-    # # for m in range(0,5):
-    # #     # PlottingSEIRD(seird[m], T, m)
-    # #     PlottingZone(seird, T)
+    for _ in range(int(input("enter number of iterations:"))):
+        newZ = [OPT(z) for z in Z_Total]
+        print(pd.DataFrame(newZ))
+        coalition_game(newZ)
+        print("-------------------------------")
+        Z_Total = newZ
+        
+            
+    
 
 def apply_OPT(Z, Time):
     newZ = []
@@ -86,6 +63,7 @@ def apply_OPT(Z, Time):
 
 
 def create_zone(t):
+    """return one zone SEIRD values"""
     # t: number of zones
     z_total = []
     for z in range(t):
@@ -105,7 +83,7 @@ def create_zone(t):
 
 
 
-def OPT(Z, repeat):
+def OPT(Z):
     global beta, sigma, gamma, alpha, P
     
     if sum(Z)>100 or sum(Z)<99:
@@ -179,54 +157,51 @@ def SEIRD(Zones):
     
 
 
-# def beta_values():
-
-#     global file, mid_B
-
-#     B = np.array(file['Population Density'].values)
-#     beta_arr = [((B[i] - np.mean(B)) / np.sum(B) + 1.0) * mid_B for i in range(z)]
-#     return beta_arr
-
 
 # -------------------------------------------------------------------------------------------------
 # ---------------------------------------Coalitions Creation---------------------------------------
 # -------------------------------------------------------------------------------------------------
 
 
-def C_M(k):
+def cpv(k):
     """Cost Per Vaccine 
     As number of vaccines order increases (k), cost (C) reduced
     """
-    # C_M : Cost Per Vaccine
+    # cpv : Cost Per Vaccine
     # k : Number of vaccine in the order of 100.000
     A = 20
     B = 10
-    return A * ( B - k + 1)
+    result = A * ( B - k + 1)
+    if result>0:
+        return result
+    else:
+        return 20
 
-def reward(Ki, k_i_th):
+def reward(k, k_th):
     """
-    Ki: number of vaccines == number of infected ppl. in zone i.
-    k_i_th: min vaccine needed for zone"""
-    if Ki < k_i_th:
+    K: number of vaccines == number of infected ppl. in zone i.
+    k_th: min number of vaccine needed for zone"""
+    if k < k_th:
         return 0
     else:
-        return math.log(Ki, C_M(Ki))
+        #print("k = {} , cpv({})= {}, k_th = {}".format(k,k, cpv(k), k_th))
+        return math.log(k, cpv(k))
     
     
 def LogFunction():
-    k = 5
+    k_th = 5
     # k = number of vaccine that a zone orders
     # cpv = cost per vaccine
-    for cpv in [20, 30, 40, 50]:
-        plt.plot([k for k in range(1,10)], 
-                 [Reward(k, k) for k in range(1,10)],
-                 label = 'Cost per Vaccine: $' + str(cpv))
+    plt.plot([k for k in range(1,10)], 
+             [reward(k, k_th) for k in range(1,10)],
+             label = 'Cost per Vaccine: $' )
     plt.xlabel("number of vaccines purchased (in order of 100K)")
     plt.ylabel('Reward')
     
-    plt.title('Minimum vaccines needed' + str(k) + '00,000')
+    plt.title('Minimum vaccines needed' + str(k_th) + '00,000')
     plt.legend()
     plt.show()
+
 
 # -------------------------------------------------------------------------------------------------
 # ---------------------------------------Coalitions Creation---------------------------------------
@@ -237,22 +212,47 @@ def coalition_game(Z, v = None):
     Z : Zones
     N : list of players
     v(S) : 2^N --> R, payoff (Reward) function that can be distribute among players of coalition."""
+    all_coalitions = Generating_Coalitions(Z)
+    uniqe_coalitions = T_reduction(all_coalitions)
+    e_core(uniqe_coalitions, Z)
+
+def Generating_Coalitions(Z):
+    """
+    Z : Zones
+    N : list of players
+    v(S) : 2^N --> R, payoff (Reward) function that can be distribute among players of coalition."""
     N = [i for i in range(len(Z))]
-    print("N = ", N)
+    # print("List of Players (zones) = ", N)
     T = []
-    c = [list(create_coalitions(N, n)) for n in range(1, len(N))]        
-    for item in c:
-        for subitem in item:
-            if subitem not in T:
-                T.append(subitem) 
-    print(DataFrame(T))
-    print("-------------------------------")
-    e_core(T, Z)
+    for i in range(1,len(N)+1):
+        for j in permutations(N):
+            c = list(create_coalitions(j, i))
+            # print(j, c)
+            for item in c:
+                T.append(item)
+    # print("\n1- List of all possible coalitions (T)\n")
+    # print(DataFrame(T))
+    return T
+
+    
+def T_reduction(T):
+    """Removing redundant coalitions"""
+    R = np.zeros(len(T))
+    for i in range(0, len(T)-1):
+        for j in range(i+1, len(T)):
+            if R[j]!=1:
+                if set(T[i])== set(T[j]):
+                    R[j] = 1
+    newT = []
+    for i in range(0,len(T)):
+        if R[i]==0:
+            newT.append(T[i])
+    return newT
 
 
-        
 def create_coalitions(data, n):
     """
+    Generating all possible combination of coalition 
     data : list of zone ids
        n : number of groups per choice"""
     from itertools import combinations, chain
@@ -263,41 +263,87 @@ def create_coalitions(data, n):
             result.append(data[prev:split])
             prev = split
         yield result
+    return list(result)
+
+
+
 
 def e_core(CH, Z, thr=None):
     """Return the best Choice for coalitions that provide the min epsilon value"""
-    # CH: CHOICES for Coalition 
+    # CH: list of CHOICES for Coalition 
     # Z : Zones
     # thr : given threshold.
-    V = [GDP(i[2]) for i in Z]
+    
+    # print(DataFrame(CH),"\n")
+    
     E = []
     R = []
-    # R =[(zone, coalition, reward)]
+    # R =[(coalition, reward)]
     # Part one: Calculate rewards for all combinations of coalitions
-    print("Choices of possible combinations", CH)
     print('************************************************************************************************')
     for ch in CH:
-        # ch : current combination
+        # ch : current option as a list of coalitions 
         CR = []
         for coalition in ch:
-            print("Coalition : ", coalition)
+            # print("Coalition : ", coalition)
+
             infected = [Z[i][2] for i in coalition]
-            zones_reward = [reward(i, i-1) for i in infected]
-            print("Infected : ", infected)
-            print("Zones Reward : ", zones_reward)
-           
-            total_reward = sum(zones_reward)
-            coalition_reward = [Shapley(total_reward, zones_reward, i) for i in range(0, len(coalition))]
-            print("Coalition Reward : ", coalition_reward,"\n")
+            # print("Infected : ", infected)
+            # print("individual Reward   : ", [reward(i,5) for i in infected])
+
+            coalition_reward = pre_Shapley(infected, coalition)
+            
+            # print("Coalition Reward : ", coalition_reward,"\n")
             
             CR.append(coalition_reward)
-        print('************************************************************************************************')
+        R.append((ch, CR))
         # c: coalition set
-    # Part Two: Calculate best epsilon for each zone!
+    # printing(R)
+
+    # Part Two: Calculate best coalition for each zone based on its reward:
+    eps = 10
+    best_choice, best_reward = R[0][0], sum_choice(R[0][1])
+    for i in range(1, len(R)):
+        choice, re = R[i][0], sum_choice(R[i][1])
+        
+        current_eps = best_reward - re
+        if eps >= current_eps and current_eps > 0:
+            eps = current_eps
+            best_reward = re
+            best_choice = choice
+            print(choice,"\t", re,"\t", best_choice,"\t", best_reward,"\t", eps)
+    print("Best choice of coalition: ", best_choice, best_reward)
     
-def GDP(z):
-    """ Z : number of vaccines that a player can afford."""   
-    return randrange(z)
+
+                
+def sum_choice(A):
+    s = 0 
+    for a in A:
+        for i in a:
+            s = s + i
+    return s
+
+
+
+def printing(D):
+    for d in D:
+        print(d)
+    
+
+    
+    
+def pre_Shapley(I, C):
+    """I: infected ppl. C: Coalition"""
+    Result = [reward(I[0],5)]
+    S = I[0]
+    for i in range(1,len(I)):
+        new_S = S + I[i]
+        Result.append(reward(new_S, 5) - reward(S,5))
+        # print("{} - {} = {}".format(reward(new_S, 5), reward(S, 5), reward(new_S, 5) - reward(S,5)))
+        S = new_S
+    return Result
+    
+    
     
     
 def M1(item, CH):
@@ -313,29 +359,83 @@ def M2(CH):
     for i in range(len(CH)):
         for c in CH[i]:
             U.append((c, i))
-        print(i, CH[i])
+        # print(i, CH[i])
     return U
 
+            
+def GDP(z):
+    """ Z : number of vaccines that a player can afford."""   
+    return 10 + randrange(z)
+
+def GrossDomesticProduct(C, I, G, X, M):
+    """𝐶 = Consumption, 
+       𝐼 = Investment, 
+       𝐺 = Government Spending, & 
+       (𝑋–𝑀) = Net Exports."""
+    return C + I + G + (X-M)
+
+# -------------------------------------------------------------------------------------------------
+# -----------------------------------------Shapley values------------------------------------------
+# -------------------------------------------------------------------------------------------------
+
+def start_shapley(A, C):
+    """A: list of zones
+    C: Coalitions"""
+    # 1- Generating V values for zones and coalitions.
+    Av = v_zone(A)
+    print("V(A) = ", Av)
+    for c in C:
+        if len(c)>1:
+            Av.append((c, v_coalition(c, Av)))
+
+    print("V(A and C) = ", Av)       
+    
+    
+def v_zone(A):
+    return [([i], randrange(100)) for i in A]
+    
+def v_coalition(C, V):
+    # C: coalition (list of zones of one coalition)
+    # V: v values for all zones
+    s = 0
+    for i in C:
+        for v in V:
+            if v[0][0]==i:
+                s = s + v[1]
+    newS = round(s * 0.5)
+    return s + randrange(newS)
         
-# -------------------------------------------------------------------------------------------------
-# -------------------------------------------------------------------------------------------------
-# -------------------------------------------------------------------------------------------------
     
 
+def Shapley(V, C):
+    """
+    V: v values of Z and coalitions
+    C: coalition to measure contribution of its zones based on order of arrival"""
+    # print("V=", V)
+    # print("C=", C)
 
+    contribution = [get_v([C[0]], V)]
+    coalition = [C[0]]
+    for i in range(1, len(C)):
+        new_coalition = coalition.copy()
+        new_coalition.append(C[i])
+        
+        old_contr= get_v(coalition, V)
+        new_contr= get_v(new_coalition, V)
+        
+        contribution.append(new_contr - old_contr )
+        coalition = new_coalition.copy()
+    
+    return sort_tuples([(C[i], contribution[i]) for i in range(0, len(C))])
+        
+                    
 
-def Shapley(R, V, i):
-    """members should receive payments or shares proportional to their marginal contributions
-    R: total reward, R = sum of reward of all player i in a coalition, 
-    V: value function
-    i: current zone (player)"""
-    return (R-V[i])/len(V)
-    
-def divide_payoff():
-    
-    return 0
-    
-    
-    
-    
-    
+def get_v(i, V):
+    for v in V:
+        if set(i) == set(v[0]):
+            # print("v({}) = {}".format(i, v[1]))
+            return v[1]
+        
+
+def sort_tuples(A):
+    return sorted(A, key=lambda x: x[0])
