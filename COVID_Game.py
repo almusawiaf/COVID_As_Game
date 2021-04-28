@@ -44,9 +44,44 @@ def main( Time = None):
         print("-------------------------------")
         Z_Total = newZ
         
+def create_V():
+    """return one zone SEIRD values, t: number of zones"""
+    return [100, 5, 50, 200]
+    # return [randrange(500) for _ in range(t)]    
+
+def v_function(V, C):
+    print("V = {}\tC = {}".format(V, C))
+    XX = sum([V[c] for c in C])
+    return XX + randrange(xx*0.5)
+        
+
+def create_zone():
+    """return one zone SEIRD values, t: number of zones"""
+    return [[100,150, 50,  20, 10],
+            [50 ,10,  5,   5,  0],
+            [500,250, 100, 200,100],
+            [250,100, 100, 50, 0]]
+    # t = 4
+    # z_total = []
+    # for z in range(t):
+    #     temp = []
+    #     people = 250
+    #     consumed = 0
+    #     for i in range(5):
+    #         if i< 4:
+    #             consumed = randrange(people)
+    #             people = people - consumed
+    #             temp.append(consumed)
+    #         else:
+    #             temp.append(people)
+    #     z_total.append(temp)
+    # return z_total        
             
     
 
+# -------------------------------------------------------------------------------------------------
+# ---------------------------------------OPT + SEIRD Model---------------------------------------
+# -------------------------------------------------------------------------------------------------
 def apply_OPT(Z, Time):
     newZ = []
     newZ.append(Z)
@@ -60,32 +95,6 @@ def apply_OPT(Z, Time):
     return newZ
     
 
-def create_V():
-    """return one zone SEIRD values, t: number of zones"""
-    return [100, 5, 50, 200]
-    # return [randrange(500) for _ in range(t)]    
-
-
-def create_zone():
-    """return one zone SEIRD values, t: number of zones"""
-    return [[100,150,50,20,10],
-    [50,10,5,5,0],
-    [500,250,100,200,100],
-    [250,100,100,50,0]]
-    # z_total = []
-    # for z in range(t):
-    #     temp = []
-    #     people = 100
-    #     consumed = 0
-    #     for i in range(5):
-    #         if i< 4:
-    #             consumed = randrange(people)
-    #             people = people - consumed
-    #             temp.append(consumed)
-    #         else:
-    #             temp.append(people)
-    #     z_total.append(temp)
-    # return z_total        
 
 def OPT(Z):
     global beta, sigma, gamma, alpha, P
@@ -117,7 +126,7 @@ def coalition_game(Z, V):
     all_coalitions = Generating_Coalitions(Z)
     uniqe_coalitions = T_reduction(all_coalitions)
     print("--------------------------------------------------------------------")
-    print(e_core2(uniqe_coalitions, Z, V))
+    print("X = ", e_core2(uniqe_coalitions, Z, V))
     print("--------------------------------------------------------------------")
 
 def Generating_Coalitions(Z):
@@ -173,6 +182,10 @@ def create_coalitions(data, n):
 # -------------------------------------------------------------------------------------------------
 
 
+
+
+
+
 # -------------------------------------------------------------------------------------------------
 # ---------------------------------------       The Core    ---------------------------------------
 # -------------------------------------------------------------------------------------------------
@@ -180,50 +193,68 @@ def e_core2(list_of_coalitions, Zones, V):
     print("Coalitions:- \n", DataFrame(list_of_coalitions))
     print("Zones:- \n", DataFrame(Zones))
     print("V-value:- \t", V)
+    _ = input("press Enter to continue")
+    best_coalitions = []
     flag = True
-    for e in range(10, 0, -1):
-        infected = [i[2] for i in Zones]
-        K_th = [i*0.1 for i in infected]
-        X = []
-        for i in range(len(Zones)):
-            R = new_shapley(sum([x for x in X]), V, i)    
-            K_i = infected[i]
-            cm = cpv(R)
-            X.append(PI(R, K_i, cm, K_th[i]))
-        print("X = ", X)
+    susceptible = [i[0] for i in Zones]
+    X = []
+    for i in range(len(Zones)):
+        R = shapley1(sum([x for x in X]), V, i)    
+        K_i = susceptible[i]
+        X.append(PI(R, K_i, K_i*0.1))
+    print("X = ", X)
+    for e in range(0,10):
+        print("------------------------------------------------------")
+        m = 0
         for coalitions in list_of_coalitions:
-           for C in coalitions:
-               # print("current coalition = ", C)
-               s1 = sum([X[p] for p in C])
-               s2 = max([X[p] for p in C])
-               if not (s1 >= s2-e):
-                   flag = False
-                   break
+            m = m + 1
+            print("\ne = ", e)
+            X_Prime = []
+            for C in coalitions:
+                c, sh_v = shapley2(V, C)
+                print("coalition({}) = {}\nC_sharpley = {}".format(m, c, sh_v))
+                for i in range(len(c)):
+                    z_i = c[i] # z_i : zone index
+                    r_i = sh_v[i]
+                    K_i = susceptible[z_i]
+                    X_Prime.append((z_i, PI(r_i, K_i, K_i*0.1)))
+            newX_Prime = [i[1] for i in sort_tuples(X_Prime)]
+            print("Old reward = ", X)
+            print("New reward = ", newX_Prime)
+            s1 = sum(X)
+            s2 = sum(newX_Prime)
+            print("s1({}) >= s2({}) - e({})".format(s1,s2,e))
+            if not (s1 >= s2-e):
+                X, best_coalitions = newX_Prime.copy(), c.copy()
+                print("Breaking now--------Coalition = {}, reward = {}".format(best_coalitions, X))
+                flag = False
+                break
         if flag:
-            return X
+            print("FLAG-------FLAG----------FLAG-------FLAG----------")
+            print("X = ", X)
+    return X, best_coalitions 
+
                    
-def new_shapley(R, V, i):
+def shapley1(R, V, i):
     return R-V[i]
-   
 
-def PI(R, ki, cm, kith):
+def shapley2(V, C):
+    """V: v function, C: Coalition, i: player"""
+    c = [C[0]]
+    v = [V[C[0]]]
+    for i in range(1, len(C)):
+        c.append(C[i])
+        v.append(sum([V[cc] for cc in c]) + randrange(75)- V[i])
+    # print("\ncoalition = ", C)
+    # print ("shapley = ", v)
+    return c, v
+
+def PI(R, ki, kith):
     """Reward function!!!"""
-    print("R = {}\tki = {}\tcm = {}\tkith".format(R, ki, cm, kith))
-    return reward(ki, kith, R)
+    rr = reward(ki, kith, R)
+    print("Reward function(R = {}, ki = {}, kith = {}) = {}".format(R, ki, kith, rr))
+    return rr
 
-def cpv(k):
-    """Cost Per Vaccine 
-    As number of vaccines order increases (k), cost (C) reduced
-    """
-    # cpv : Cost Per Vaccine
-    # k : Number of vaccine in the order of 100.000
-    A = 20
-    B = 10
-    result = A * ( B - k + 1)
-    if result>0:
-        return result
-    else:
-        return 20
 
 def reward(k, k_th, r):
     """K: number of vaccines == number of infected ppl. in zone i. k_th: min number of vaccine needed for zone
@@ -233,6 +264,21 @@ def reward(k, k_th, r):
     else:
         return math.log(k, cpv(r))
 
+def cpv(R):
+    """Cost Per Vaccine 
+    As number of vaccines order increases (k), cost (C) reduced
+    """
+    # cpv : Cost Per Vaccine
+    # k : Number of vaccine in the order of 100.000
+    A = 20
+    B = 10
+    result = A * ( B - R + 1)
+    if result>0:
+        return result
+    else:
+        return 20
 # -------------------------------------------------------------------------------------------------
 # -----------------------------------    End of The Core    ---------------------------------------
 # -------------------------------------------------------------------------------------------------
+def sort_tuples(A):
+    return sorted(A, key=lambda x: x[0])
