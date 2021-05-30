@@ -1,4 +1,4 @@
-# COVID_As_Game
+# COVID_AsA_Game
 
 
 1. To start run the code, call the main() function. 
